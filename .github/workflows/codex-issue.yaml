@@ -44,8 +44,7 @@ jobs:
       - if: ${{ steps.gate.outputs.run == 'true' }}
         run: |
           BODY="$(jq -r '.body' ctx.json)"
-          echo "$BODY" > codex_input.txt
-          codex -m gpt-5-codex --quiet "$BODY" | tee codex_output.txt
+          codex -o codex_output.txt "$BODY"
 
       - if: ${{ steps.gate.outputs.run == 'true' }}
         uses: actions/github-script@v7
