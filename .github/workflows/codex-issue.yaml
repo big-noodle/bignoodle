@@ -1,0 +1,62 @@
+name: Run Codex CLI (on issue comment)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  codex:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm install -g @openai/codex
+
+      - run: |
+          mkdir -p ~/.codex
+          echo '${{ secrets.OPENAI_AUTH }}' > ~/.codex/auth.json
+          echo '${{ secrets.CODEX_CONFIG }}' > ~/.codex/config.json
+
+      - run: codex --version
+
+      - id: ctx
+        run: |
+          jq -r '{number: .issue.number, body: .comment.body}' "$GITHUB_EVENT_PATH" > ctx.json
+
+      - id: gate
+        run: |
+          BODY="$(jq -r '.body' ctx.json)"
+          if echo "$BODY" | grep -qi '@mulmuri-agent'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: ${{ steps.gate.outputs.run == 'true' }}
+        run: |
+          BODY="$(jq -r '.body' ctx.json)"
+          echo "$BODY" > codex_input.txt
+          codex -m gpt-5-codex --quiet "$BODY" | tee codex_output.txt
+
+      - if: ${{ steps.gate.outputs.run == 'true' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const ctx = JSON.parse(fs.readFileSync('ctx.json', 'utf8'));
+            const output = fs.readFileSync('codex_output.txt', 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ctx.number,
+              body: output.slice(0, 65000)
+            });
