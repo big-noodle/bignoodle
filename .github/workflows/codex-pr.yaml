@@ -1,12 +1,11 @@
-name: Run Codex CLI (on issue comment)
+name: Run Codex CLI (on PR review comment)
 
 on:
-  issue_comment:
+  pull_request_review_comment:
     types: [created]
 
 permissions:
   contents: read
-  issues: write
   pull-requests: write
 
 jobs:
@@ -16,17 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-codex-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-codex-
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - run: npm install -g @openai/codex
 
@@ -39,7 +30,7 @@ jobs:
 
       - id: ctx
         run: |
-          jq -r '{number: .issue.number, body: .comment.body}' "$GITHUB_EVENT_PATH" > ctx.json
+          jq -r '{number: .pull_request.number, body: .comment.body}' "$GITHUB_EVENT_PATH" > ctx.json
 
       - id: gate
         run: |
@@ -53,7 +44,6 @@ jobs:
       - if: ${{ steps.gate.outputs.run == 'true' }}
         run: |
           BODY="$(jq -r '.body' ctx.json)"
-          echo "$BODY" > codex_input.txt
           codex -m gpt-5-codex --quiet "$BODY" | tee codex_output.txt
 
       - if: ${{ steps.gate.outputs.run == 'true' }}
