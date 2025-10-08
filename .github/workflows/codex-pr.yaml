@@ -26,8 +26,6 @@ jobs:
           echo '${{ secrets.OPENAI_AUTH }}' > ~/.codex/auth.json
           echo '${{ secrets.CODEX_CONFIG }}' > ~/.codex/config.json
 
-      - run: codex --version
-
       - id: ctx
         run: |
           jq -r '{number: .pull_request.number, body: .comment.body}' "$GITHUB_EVENT_PATH" > ctx.json
@@ -44,7 +42,7 @@ jobs:
       - if: ${{ steps.gate.outputs.run == 'true' }}
         run: |
           BODY="$(jq -r '.body' ctx.json)"
-          codex -m gpt-5-codex --quiet "$BODY" | tee codex_output.txt
+          codex -o codex_output.txt "$BODY"
 
       - if: ${{ steps.gate.outputs.run == 'true' }}
         uses: actions/github-script@v7
